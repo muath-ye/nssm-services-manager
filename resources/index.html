@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self' ws://127.0.0.1:* ws://localhost:*" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>NSSM Services Manager</title>
   <meta name="description" content="Start, stop and manage Windows services powered by NSSM" />
@@ -11,12 +11,13 @@
 </head>
 <body class="h-screen overflow-hidden pt-8">
   <!-- TitleBar (frameless window) -->
-  <div class="drag fixed inset-x-0 top-0 z-50 flex h-8 select-none items-center justify-between bg-surface pl-3">
-    <div class="flex items-center gap-2">
-      <img src="assets/nssm-services-manager.svg" alt="" class="h-4 w-4 rounded-sm" />
-      <span class="text-xs text-fg">NSSM Services Manager</span>
+  <div class="fixed inset-x-0 top-0 z-50 flex h-8 select-none items-center bg-surface">
+    <!-- Drag region: moves the window (set up with Neutralino.window.setDraggableRegion) -->
+    <div id="titleDrag" class="flex h-full flex-1 items-center gap-2 pl-3">
+      <img src="assets/nssm-services-manager.svg" alt="" class="pointer-events-none h-4 w-4 rounded-sm" />
+      <span class="pointer-events-none text-xs text-fg">NSSM Services Manager</span>
     </div>
-    <div class="no-drag flex h-full">
+    <div class="flex h-full">
       <button id="winMin" class="flex h-full w-[46px] items-center justify-center text-[10px] text-fg transition hover:bg-subtle/10" title="Minimize" aria-label="Minimize"><i class="fi">&#xE921;</i></button>
       <button id="winMax" class="flex h-full w-[46px] items-center justify-center text-[10px] text-fg transition hover:bg-subtle/10" title="Maximize" aria-label="Maximize"><i id="winMaxIcon" class="fi">&#xE922;</i></button>
       <button id="winClose" class="flex h-full w-[46px] items-center justify-center text-[10px] text-fg transition hover:bg-[#c42b1c] hover:text-white" title="Close" aria-label="Close"><i class="fi">&#xE8BB;</i></button>
@@ -57,6 +58,7 @@
             <p id="infobarTitle" class="font-semibold"></p>
             <p id="infobarText" class="text-fg2"></p>
           </div>
+          <button id="infobarAction" class="btn hidden shrink-0"></button>
         </div>
 
         <div class="flex flex-wrap items-center justify-between gap-3 px-10 pb-3 pt-3">
@@ -238,6 +240,10 @@
 
   <div id="toasts" class="fixed bottom-5 right-5 z-50 space-y-2"></div>
 
+  <!-- Window mode: Neutralino injects its globals (NL_TOKEN, NL_PORT…) itself. Loading
+       __neutralino_globals.js here would overwrite the one-time token with an empty one. -->
+  <script src="js/neutralino.js"></script>
+  <script src="api.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

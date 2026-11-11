@@ -29,11 +29,11 @@ jobs:
         shell: bash
         run: npm version "${GITHUB_REF_NAME#v}" --no-git-tag-version --allow-same-version
 
-      - name: Build Windows installer and portable exe
-        run: npm run dist
-        env:
-          # Do not let electron-builder publish by itself; the release step below does it.
-          GH_TOKEN: ''
+      - name: Download Neutralino binary and client library
+        run: npm run setup
+
+      - name: Build the exe
+        run: npm run build
 
       - name: Create checksums
         shell: pwsh
@@ -47,7 +47,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            dist/*.exe
+            dist/NSSMServicesManager-*.exe
             dist/SHA256SUMS.txt
           generate_release_notes: true
           # Tags like v1.2.0-beta.1 are marked as pre-releases.

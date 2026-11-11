@@ -26,8 +26,12 @@
   --warn: 157 93 0;
 }
 
+/* The app sets data-theme="light" | "dark" on <html>; with no attribute it follows the system. */
+:root[data-theme='light'] { color-scheme: light; }
+:root[data-theme='dark'] { color-scheme: dark; }
+
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme='light']) {
     --surface: 32 32 32;
     --card: 43 43 43;
     --cardhover: 50 50 50;
@@ -44,6 +48,24 @@
     --bad: 255 153 164;
     --warn: 252 225 0;
   }
+}
+
+:root[data-theme='dark'] {
+  --surface: 32 32 32;
+  --card: 43 43 43;
+  --cardhover: 50 50 50;
+  --control: 55 55 55;
+  --stroke: 62 62 62;
+  --fg: 255 255 255;
+  --fg2: 206 206 206;
+  --fg3: 157 157 157;
+  --accent: 96 205 255;
+  --accenthover: 76 190 245;
+  --onaccent: 0 0 0;
+  --subtle: 255 255 255;
+  --ok: 108 203 95;
+  --bad: 255 153 164;
+  --warn: 252 225 0;
 }
 
 @layer base {

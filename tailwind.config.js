@@ -2,7 +2,8 @@
 const token = (name) => `rgb(var(--${name}) / <alpha-value>)`;
 
 module.exports = {
-  content: ['./renderer/**/*.{html,js}'],
+  // Only our own files; resources/js/neutralino.js is a large generated library.
+  content: ['./resources/index.html', './resources/app.js', './resources/api.js'],
   theme: {
     extend: {
       fontFamily: {

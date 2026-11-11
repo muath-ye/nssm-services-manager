@@ -82,8 +82,14 @@ const INFO = {
 const INFO_CLASSES = Object.values(INFO).flatMap((i) => [i.bg]);
 const INFO_ICON_CLASSES = Object.values(INFO).map((i) => i.icon);
 
-function infoBar(id, kind, title, text) {
+function infoBar(id, kind, title, text, action = null) {
   const style = INFO[kind] || INFO.info;
+  const actionButton = $(`${id}Action`);
+  if (actionButton) {
+    actionButton.classList.toggle('hidden', !action);
+    actionButton.textContent = action ? action.label : '';
+    actionButton.onclick = action ? action.run : null;
+  }
   const bar = $(id);
   bar.classList.remove(...INFO_CLASSES);
   bar.classList.add(style.bg);
@@ -346,6 +352,13 @@ async function submitInstall() {
 
 /* ---------- Boot ---------- */
 
+async function restartAsAdmin() {
+  const r = await api.relaunchElevated();
+  if (!r.ok) {
+    toast(r.message, false);
+  }
+}
+
 async function startServices() {
   navigate('services');
   renderFilters();
@@ -355,7 +368,8 @@ async function startServices() {
       'infobar',
       'warn',
       'Administrator rights needed',
-      'Starting, stopping and removing services requires running this app as administrator.',
+      'You can browse services now. Starting, stopping, installing and removing them needs administrator rights.',
+      { label: 'Restart as administrator', run: restartAsAdmin },
     );
   }
   $('loading').classList.remove('hidden');
@@ -455,4 +469,9 @@ $('list').addEventListener('click', (e) => {
   }
 });
 
-boot();
+$('titleDrag').addEventListener('dblclick', () => api.toggleMaximize());
+
+api.ready.then(() => {
+  api.setDragRegion('titleDrag');
+  boot();
+});

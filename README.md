@@ -3,8 +3,10 @@
 A modern Windows 11-style desktop app to start, stop and manage Windows services, powered by
 [NSSM](https://nssm.cc) (the Non-Sucking Service Manager).
 
-Built with Electron and Tailwind CSS, following Windows 11 / WinUI design: a navigation pane, Settings-style
-expandable cards, toggle switches, light and dark themes, and a frameless custom title bar.
+Built with [Neutralino.js](https://neutralino.js.org) and Tailwind CSS, following Windows 11 / WinUI design: a
+navigation pane, Settings-style expandable cards, toggle switches, light and dark themes, and a frameless custom
+title bar. The whole app is **a single exe of a few MB**, because it uses the WebView2 browser engine that already
+ships with Windows instead of bundling its own.
 
 ## Features
 
@@ -21,9 +23,11 @@ expandable cards, toggle switches, light and dark themes, and a frameless custom
 ## Requirements
 
 - Windows 10 or 11 (the design targets Windows 11)
+- The [WebView2 runtime](https://developer.microsoft.com/microsoft-edge/webview2/). It is built into Windows 11 and
+  already installed on almost all Windows 10 machines.
 - [`nssm.exe`](https://nssm.cc/download) on the machine; the app asks for its location on first launch
-- Administrator rights to start, stop, install or remove services. The packaged app requests elevation
-  automatically.
+- Administrator rights to start, stop, install or remove services. The app opens normally without a UAC prompt, so
+  you can browse services right away. A banner offers **Restart as administrator** when you need to change something.
 
 ## Install
 
@@ -31,11 +35,10 @@ Download the latest build from the [Releases](../../releases) page:
 
 | File | What it is |
 | --- | --- |
-| `NSSMServicesManager-Setup-<version>.exe` | Installer (choose the install folder, installs for all users) |
-| `NSSMServicesManager-Portable-<version>.exe` | Single-file portable version, no installation |
-| `SHA256SUMS.txt` | Checksums to verify the downloads |
+| `NSSMServicesManager-<version>.exe` | The app. A single file, no installation needed |
+| `SHA256SUMS.txt` | Checksums to verify the download |
 
-The builds are not code-signed, so Windows SmartScreen may show a warning on first run
+Put the exe anywhere you like. The build is not code-signed, so Windows SmartScreen may show a warning on first run
 (**More info → Run anyway**).
 
 ## First run
@@ -46,8 +49,7 @@ The builds are not code-signed, so Windows SmartScreen may show a warning on fir
 
 ## Configuration
 
-Settings are saved in `config.json` next to the executable (the folder of the portable exe, or the install
-folder for the installer version):
+Settings are saved in `config.json` in the same folder as the exe:
 
 ```json
 {
@@ -62,8 +64,8 @@ folder for the installer version):
 
 Turn on **Settings → Start with Windows** to launch the app at sign-in. Windows does not start elevated apps from
 the usual startup registry key, so the app registers a Scheduled Task named `NSSM Services Manager` (trigger: at
-logon, highest privileges). Turning the option off removes the task. This option is only available in the packaged
-app, not when running from source.
+logon, highest privileges). Turning the option off removes the task. If you move the exe, the task is updated the
+next time you start the app. This option is only available in the built exe, not when running from source.
 
 ## Development
 
@@ -71,35 +73,40 @@ Requirements: [Node.js](https://nodejs.org) 22 or newer.
 
 ```bash
 npm install
-npm start        # builds the CSS and launches the app
+npm run setup    # downloads the Neutralino binary and client library (once)
+npm run dev      # builds the CSS and launches the app
 ```
 
-Run the terminal as administrator if you want to test starting and stopping services.
+Run the terminal as administrator if you want to test starting and stopping services, or use the in-app
+**Restart as administrator** button.
 
 | Script | Purpose |
 | --- | --- |
-| `npm start` | Build the CSS and run the app |
-| `npm run css` | Build `renderer/styles.css` from `src/input.css` |
+| `npm run setup` | Download the Neutralino binary into `bin/` and the client library into `resources/js/` |
+| `npm run dev` | Build the CSS and run the app from source |
+| `npm run css` | Build `resources/styles.css` from `src/input.css` |
 | `npm run css:watch` | Rebuild the CSS on change |
-| `npm run dist` | Build the installer and portable exe into `dist/` |
-
-If `npm start` reports "Electron failed to install correctly", the Electron binary download did not finish. Run
-`node node_modules/electron/install.js`, or delete `node_modules/electron` and run `npm install` again.
+| `npm run build` | Build the single-file exe into `dist/` |
 
 ### Project layout
 
 ```
-main.js             Electron main process: window, config, NSSM and PowerShell calls, IPC
-preload.js          Safe bridge between the main process and the UI
-renderer/           The UI (index.html, app.js, generated styles.css, assets/)
-src/input.css       Tailwind source with the Windows 11 design tokens
-tailwind.config.js  Maps Tailwind colors to the design tokens
-build/icon.png      App icon used for the exe and installer
+neutralino.config.json  App window and permission settings
+resources/              The UI: index.html, app.js, api.js, assets/, icons/ (styles.css is generated)
+  api.js                Bridge to Windows: NSSM and PowerShell calls, config, theme, startup task
+  app.js                The UI logic
+src/input.css           Tailwind source with the Windows 11 design tokens
+tailwind.config.js      Maps Tailwind colors to the design tokens
+scripts/build.js        Stamps the exe (icon, version info) and builds it
+build/                  App icon (icon.ico and icon.png)
 ```
 
-The UI runs with context isolation and no Node access; it talks to the main process only through the
-functions exposed in `preload.js`. NSSM and PowerShell are always called without a shell, with arguments passed
-as an array.
+### How commands run safely
+
+Neutralino starts commands through the shell, so values such as service names and paths are never put on a command
+line. Every PowerShell script receives its data as base64-encoded variables and is itself passed with
+`-EncodedCommand`, so the command line only contains base64 characters. The app's window is also limited to the few
+Neutralino functions it needs (`nativeAllowList` in `neutralino.config.json`).
 
 ## Releasing
 
