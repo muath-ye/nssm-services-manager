@@ -1,0 +1,243 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>NSSM Services Manager</title>
+  <meta name="description" content="Start, stop and manage Windows services powered by NSSM" />
+  <link rel="icon" href="assets/nssm-services-manager.png" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body class="h-screen overflow-hidden pt-8">
+  <!-- TitleBar (frameless window) -->
+  <div class="drag fixed inset-x-0 top-0 z-50 flex h-8 select-none items-center justify-between bg-surface pl-3">
+    <div class="flex items-center gap-2">
+      <img src="assets/nssm-services-manager.svg" alt="" class="h-4 w-4 rounded-sm" />
+      <span class="text-xs text-fg">NSSM Services Manager</span>
+    </div>
+    <div class="no-drag flex h-full">
+      <button id="winMin" class="flex h-full w-[46px] items-center justify-center text-[10px] text-fg transition hover:bg-subtle/10" title="Minimize" aria-label="Minimize"><i class="fi">&#xE921;</i></button>
+      <button id="winMax" class="flex h-full w-[46px] items-center justify-center text-[10px] text-fg transition hover:bg-subtle/10" title="Maximize" aria-label="Maximize"><i id="winMaxIcon" class="fi">&#xE922;</i></button>
+      <button id="winClose" class="flex h-full w-[46px] items-center justify-center text-[10px] text-fg transition hover:bg-[#c42b1c] hover:text-white" title="Close" aria-label="Close"><i class="fi">&#xE8BB;</i></button>
+    </div>
+  </div>
+
+  <div class="flex h-full">
+    <!-- NavigationView pane -->
+    <nav class="flex w-60 shrink-0 flex-col gap-0.5 px-2 pb-2 pt-1" aria-label="Main navigation">
+      <button class="nav-item" data-page="services" aria-current="page">
+        <i class="fi w-4 text-base">&#xE770;</i><span>Services</span>
+      </button>
+      <div class="flex-1"></div>
+      <button class="nav-item" data-page="settings">
+        <i class="fi w-4 text-base">&#xE713;</i><span>Settings</span>
+      </button>
+    </nav>
+
+    <!-- Content -->
+    <main class="min-w-0 flex-1 rounded-tl-lg border-l border-t border-stroke bg-card/50">
+      <!-- Services page -->
+      <section id="page-services" class="flex h-full flex-col">
+        <header class="flex items-end justify-between gap-4 px-10 pb-2 pt-6">
+          <div>
+            <h1 class="text-[28px] font-semibold leading-tight">Services</h1>
+            <p id="summary" class="text-sm text-fg2">Loading…</p>
+          </div>
+          <!-- CommandBar -->
+          <div class="flex items-center gap-1">
+            <button id="installBtn" class="btn btn-primary"><i class="fi">&#xE710;</i>New service</button>
+            <button id="refreshBtn" class="btn btn-flat" title="Refresh (F5)"><i class="fi">&#xE72C;</i>Refresh</button>
+          </div>
+        </header>
+
+        <div id="infobar" role="status" class="mx-10 mt-2 hidden items-start gap-3 rounded border border-stroke px-4 py-3 text-sm">
+          <i id="infobarIcon" class="fi mt-0.5 text-base"></i>
+          <div class="min-w-0 flex-1">
+            <p id="infobarTitle" class="font-semibold"></p>
+            <p id="infobarText" class="text-fg2"></p>
+          </div>
+        </div>
+
+        <div class="flex flex-wrap items-center justify-between gap-3 px-10 pb-3 pt-3">
+          <div class="relative w-full max-w-sm">
+            <input id="search" class="input pr-9" placeholder="Find a service (Ctrl+F)" aria-label="Find a service" />
+            <i class="fi pointer-events-none absolute right-3 top-2 text-xs text-fg2">&#xE721;</i>
+          </div>
+          <div id="filters" class="tabs" role="group" aria-label="Filter"></div>
+        </div>
+
+        <!-- Filters -->
+        <div class="flex flex-wrap items-end gap-3 px-10 pb-3">
+          <label class="block">
+            <span class="mb-1 block text-xs text-fg2">Status</span>
+            <span class="relative block w-44">
+              <select id="fStatus" class="input appearance-none pr-8">
+                <option value="all">All</option>
+                <option value="Running">Running</option>
+                <option value="Stopped">Stopped</option>
+                <option value="Paused">Paused</option>
+                <option value="pending">Pending</option>
+              </select>
+              <svg class="pointer-events-none absolute right-3 top-[11px] h-2.5 w-2.5 text-fg2" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 4.5l4 4 4-4"/></svg>
+            </span>
+          </label>
+          <label class="block">
+            <span class="mb-1 block text-xs text-fg2">Startup type</span>
+            <span class="relative block w-52">
+              <select id="fStartup" class="input appearance-none pr-8">
+                <option value="all">All</option>
+                <option value="auto">Automatic</option>
+                <option value="delayed">Automatic (Delayed Start)</option>
+                <option value="manual">Manual</option>
+                <option value="disabled">Disabled</option>
+              </select>
+              <svg class="pointer-events-none absolute right-3 top-[11px] h-2.5 w-2.5 text-fg2" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 4.5l4 4 4-4"/></svg>
+            </span>
+          </label>
+          <label class="block">
+            <span class="mb-1 block text-xs text-fg2">Log on as</span>
+            <span class="relative block w-48">
+              <select id="fLogon" class="input appearance-none pr-8">
+                <option value="all">All</option>
+                <option value="system">Local System</option>
+                <option value="local">Local Service</option>
+                <option value="network">Network Service</option>
+                <option value="user">User account</option>
+              </select>
+              <svg class="pointer-events-none absolute right-3 top-[11px] h-2.5 w-2.5 text-fg2" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 4.5l4 4 4-4"/></svg>
+            </span>
+          </label>
+          <button id="clearFilters" class="btn btn-flat hidden"><i class="fi">&#xE894;</i>Clear filters</button>
+        </div>
+
+        <div class="flex-1 overflow-y-auto px-10 pb-8">
+          <div id="loading" class="flex flex-col items-center gap-3 py-20 text-fg2">
+            <svg class="h-8 w-8 animate-spin text-accent" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-opacity=".25" stroke-width="3"/><path d="M21 12a9 9 0 00-9-9" stroke="currentColor" stroke-width="3" stroke-linecap="round"/></svg>
+            <span class="text-sm">Loading services…</span>
+          </div>
+          <div id="list" class="hidden space-y-1" aria-live="polite"></div>
+          <div id="empty" class="hidden flex-col items-center gap-2 py-20 text-center">
+            <i class="fi text-4xl text-fg3">&#xE721;</i>
+            <p class="font-semibold">No services found</p>
+            <p class="text-sm text-fg2">Try a different search or filter.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Settings page -->
+      <section id="page-settings" class="hidden h-full overflow-y-auto px-10 pb-8 pt-6">
+        <h1 class="mb-4 text-[28px] font-semibold leading-tight">Settings</h1>
+
+        <div id="settingsInfo" role="status" class="mb-4 hidden items-start gap-3 rounded border border-stroke px-4 py-3 text-sm">
+          <i id="settingsInfoIcon" class="fi mt-0.5 text-base"></i>
+          <div class="min-w-0 flex-1">
+            <p id="settingsInfoTitle" class="font-semibold"></p>
+            <p id="settingsInfoText" class="text-fg2"></p>
+          </div>
+        </div>
+
+        <div class="max-w-3xl space-y-1">
+          <!-- NSSM path -->
+          <div class="card px-5 py-4">
+            <div class="flex items-center gap-4">
+              <i class="fi w-5 text-xl text-fg2">&#xE8B7;</i>
+              <div>
+                <p>NSSM executable</p>
+                <p class="text-xs text-fg2">Location of <span class="font-mono">nssm.exe</span> used to control services</p>
+              </div>
+            </div>
+            <div class="mt-3 flex gap-2 pl-9">
+              <input id="nssmInput" class="input font-mono" placeholder="C:\tools\nssm\win64\nssm.exe" spellcheck="false" aria-label="NSSM path" />
+              <button id="browseBtn" class="btn shrink-0">Browse</button>
+              <button id="saveBtn" class="btn btn-primary shrink-0">Save</button>
+            </div>
+            <p id="setupError" class="mt-2 hidden pl-9 text-sm text-bad"></p>
+          </div>
+
+          <!-- Theme -->
+          <div class="card flex items-center justify-between gap-4 px-5 py-4">
+            <div class="flex items-center gap-4">
+              <i class="fi w-5 text-xl text-fg2">&#xE790;</i>
+              <div>
+                <p>App theme</p>
+                <p class="text-xs text-fg2">Select which app theme to display</p>
+              </div>
+            </div>
+            <div class="relative w-52">
+              <select id="themeSelect" class="input appearance-none pr-9" aria-label="App theme">
+                <option value="light">Light</option>
+                <option value="dark">Dark</option>
+                <option value="system">Use system setting</option>
+              </select>
+              <svg class="pointer-events-none absolute right-3 top-[11px] h-2.5 w-2.5 text-fg2" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 4.5l4 4 4-4"/></svg>
+            </div>
+          </div>
+        </div>
+
+        <div class="max-w-3xl pt-1">
+          <!-- Run at startup -->
+          <div class="card flex items-center justify-between gap-4 px-5 py-4">
+            <div class="flex items-center gap-4">
+              <i class="fi w-5 text-xl text-fg2">&#xE7E8;</i>
+              <div>
+                <p>Start with Windows</p>
+                <p id="startupHint" class="text-xs text-fg2">Open automatically when you sign in, with administrator rights</p>
+              </div>
+            </div>
+            <div class="flex items-center gap-3">
+              <span id="startupLabel" class="w-8 text-right text-sm">Off</span>
+              <button id="startupSwitch" role="switch" aria-checked="false" aria-label="Start with Windows" class="switch" disabled></button>
+            </div>
+          </div>
+        </div>
+
+        <h2 class="mb-2 mt-8 text-sm font-semibold">About</h2>
+        <div class="card max-w-3xl px-5 py-4">
+          <div class="flex items-center gap-4">
+            <img src="assets/nssm-services-manager.svg" alt="" class="h-10 w-10 rounded border border-stroke" />
+            <div>
+              <p class="font-semibold">NSSM Services Manager</p>
+              <p class="text-sm text-fg2">Start, stop and manage Windows services powered by NSSM</p>
+              <p class="mt-1 text-xs text-fg3">Version <span id="versionText"></span> · Config: <span id="configFile" class="font-mono"></span></p>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- ContentDialog: install -->
+  <div id="modal" class="fixed inset-0 z-40 hidden items-center justify-center bg-black/40 p-6 pt-14" role="dialog" aria-modal="true" aria-labelledby="installTitle">
+    <div class="overlay w-full max-w-md p-6">
+      <h2 id="installTitle" class="mb-4 text-xl font-semibold">Install new service</h2>
+      <div class="space-y-3">
+        <input id="fName" class="input" placeholder="Service name" aria-label="Service name" />
+        <input id="fApp" class="input font-mono" placeholder="Application path (exe / bat)" aria-label="Application path" />
+        <input id="fArgs" class="input font-mono" placeholder="Arguments (optional)" aria-label="Arguments" />
+        <input id="fDir" class="input font-mono" placeholder="Working directory (optional)" aria-label="Working directory" />
+      </div>
+      <div class="mt-6 grid grid-cols-2 gap-2">
+        <button id="modalOk" class="btn btn-primary">Install</button>
+        <button id="modalCancel" class="btn">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ContentDialog: confirm -->
+  <div id="confirmModal" class="fixed inset-0 z-40 hidden items-center justify-center bg-black/40 p-6 pt-14" role="dialog" aria-modal="true" aria-labelledby="confirmTitle">
+    <div class="overlay w-full max-w-sm p-6">
+      <h2 id="confirmTitle" class="mb-2 text-xl font-semibold"></h2>
+      <p id="confirmText" class="text-sm text-fg2"></p>
+      <div class="mt-6 grid grid-cols-2 gap-2">
+        <button id="confirmOk" class="btn btn-primary">Remove</button>
+        <button id="confirmCancel" class="btn">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toasts" class="fixed bottom-5 right-5 z-50 space-y-2"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>

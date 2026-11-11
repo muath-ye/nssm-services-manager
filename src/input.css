@@ -1,0 +1,140 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * WinUI 3 / Fluent design tokens as "R G B" triplets so Tailwind can apply opacity.
+ * Light is the default; dark follows prefers-color-scheme, which Electron drives
+ * through nativeTheme.themeSource (system / light / dark).
+ */
+:root {
+  color-scheme: light dark;
+  --surface: 243 243 243;
+  --card: 255 255 255;
+  --cardhover: 249 249 249;
+  --control: 255 255 255;
+  --stroke: 229 229 229;
+  --fg: 26 26 26;
+  --fg2: 96 96 96;
+  --fg3: 140 140 140;
+  --accent: 0 95 184;
+  --accenthover: 0 84 166;
+  --onaccent: 255 255 255;
+  --subtle: 0 0 0;
+  --ok: 15 123 15;
+  --bad: 196 43 28;
+  --warn: 157 93 0;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --surface: 32 32 32;
+    --card: 43 43 43;
+    --cardhover: 50 50 50;
+    --control: 55 55 55;
+    --stroke: 62 62 62;
+    --fg: 255 255 255;
+    --fg2: 206 206 206;
+    --fg3: 157 157 157;
+    --accent: 96 205 255;
+    --accenthover: 76 190 245;
+    --onaccent: 0 0 0;
+    --subtle: 255 255 255;
+    --ok: 108 203 95;
+    --bad: 255 153 164;
+    --warn: 252 225 0;
+  }
+}
+
+@layer base {
+  html { font-size: 14px; }
+  body { @apply bg-surface text-fg antialiased; }
+  ::-webkit-scrollbar { width: 12px; }
+  ::-webkit-scrollbar-thumb {
+    @apply rounded-full border-[3px] border-solid border-transparent bg-fg3/60 bg-clip-content;
+  }
+  ::-webkit-scrollbar-track { @apply bg-transparent; }
+}
+
+/* Visible keyboard focus */
+:focus-visible {
+  outline: 2px solid rgb(var(--accent));
+  outline-offset: 1px;
+}
+input:focus-visible, select:focus-visible { outline: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}
+
+@layer utilities {
+  .drag { -webkit-app-region: drag; }
+  .no-drag { -webkit-app-region: no-drag; }
+}
+
+@layer components {
+  /* Segoe Fluent Icons glyph (falls back to Segoe MDL2 Assets on Windows 10) */
+  .fi {
+    font-family: 'Segoe Fluent Icons', 'Segoe MDL2 Assets', sans-serif;
+    font-style: normal;
+    font-weight: normal;
+    line-height: 1;
+    @apply inline-block select-none;
+  }
+
+  /* Settings-style card: 4px radius */
+  .card { @apply rounded border border-stroke bg-card/80; }
+  .overlay { @apply rounded-lg border border-stroke bg-card shadow-2xl; }
+
+  .btn {
+    @apply inline-flex h-8 items-center justify-center gap-2 rounded border border-stroke bg-control px-4 text-sm
+      text-fg transition hover:bg-subtle/5 active:bg-subtle/10 disabled:pointer-events-none disabled:opacity-40;
+  }
+  .btn-primary { @apply border-accent bg-accent text-onaccent hover:bg-accenthover active:opacity-90; }
+  /* Flat command-bar / icon button */
+  .btn-flat { @apply border-transparent bg-transparent hover:bg-subtle/[0.06] active:bg-subtle/10; }
+  .btn-icon { @apply btn-flat w-8 px-0 text-fg2 hover:text-fg; }
+  .btn-danger { @apply hover:!bg-bad/15 hover:!text-bad; }
+
+  .input {
+    @apply h-8 w-full rounded border border-stroke border-b-fg3 bg-control px-3 text-sm text-fg
+      placeholder-fg3 outline-none transition focus:border-b-2 focus:border-b-accent;
+  }
+
+  /* ToggleSwitch */
+  .switch {
+    @apply relative h-5 w-10 shrink-0 rounded-full border border-fg2 bg-transparent transition
+      disabled:pointer-events-none disabled:opacity-40;
+  }
+  /* Knob is vertically centred and moved with transform, so hover growth never shifts its edges. */
+  .switch::after {
+    content: '';
+    @apply absolute left-1 top-1/2 h-3 w-3 rounded-full bg-fg2 transition-all duration-150;
+    transform: translate(0, -50%);
+  }
+  /* Inner track is 38px wide. Off: 4px gap on the left. On: 6px gap on the right. */
+  .switch:hover::after { @apply h-[14px] w-[14px]; transform: translate(-1px, -50%); }
+  .switch[aria-checked='true'] { @apply border-accent bg-accent; }
+  .switch[aria-checked='true']::after { @apply bg-onaccent; transform: translate(16px, -50%); }
+  .switch[aria-checked='true']:hover::after { transform: translate(14px, -50%); }
+
+  /* SelectorBar-style tabs with an accent indicator */
+  .tabs { @apply flex gap-1; }
+  .tabs > button { @apply relative rounded px-3 py-1.5 text-sm text-fg2 transition hover:bg-subtle/[0.06]; }
+  .tabs > button[aria-pressed='true'] { @apply text-fg; }
+  .tabs > button[aria-pressed='true']::after {
+    content: '';
+    @apply absolute inset-x-3 bottom-0 h-[3px] rounded-full bg-accent;
+  }
+
+  /* NavigationView item */
+  .nav-item {
+    @apply relative flex h-10 w-full items-center gap-3 rounded px-3 text-sm text-fg transition
+      hover:bg-subtle/[0.06] disabled:pointer-events-none disabled:opacity-40;
+  }
+  .nav-item[aria-current='page'] { @apply bg-subtle/[0.06]; }
+  .nav-item[aria-current='page']::before {
+    content: '';
+    @apply absolute left-0 top-1/2 h-4 w-[3px] -translate-y-1/2 rounded-full bg-accent;
+  }
+}
