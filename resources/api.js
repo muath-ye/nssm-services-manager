@@ -13,7 +13,14 @@ const api = (() => {
    * Folder holding config.json: the exe's own folder when built (it can be started from any working
    * directory, e.g. by the sign-in task), or the project root under `neu run`.
    */
-  const appDir = () => (packaged() ? NL_ARGS[0].replace(/[\\/][^\\/]*$/, '') : NL_PATH);
+  const appDir = () => {
+    if (!packaged()) {
+      return NL_PATH;
+    }
+    // NL_PATH is unreliable when the exe starts from another working directory, so use the exe path itself.
+    const exe = String(NL_ARGS[0]);
+    return /[\\/]/.test(exe) ? exe.replace(/[\\/][^\\/]*$/, '') : '.';
+  };
   const configFile = () => `${appDir()}/config.json`;
 
   /* ---------- encoding helpers ---------- */
@@ -124,8 +131,8 @@ ${script}
 
   /* ---------- run at sign-in (Scheduled Task, highest privileges) ---------- */
 
-  /** True for the built exe (resources bundled), false under `neu run`. */
-  const packaged = () => typeof NL_RESMODE !== 'undefined' && NL_RESMODE === 'bundle';
+  /** True for the built exe (resources bundled or embedded in it), false under `neu run`. */
+  const packaged = () => typeof NL_RESMODE !== 'undefined' && ['bundle', 'embedded'].includes(NL_RESMODE);
 
   const QUERY_TASK = `
 $t = Get-ScheduledTask -TaskName $task -ErrorAction SilentlyContinue

@@ -38,8 +38,8 @@ Download the latest build from the [Releases](../../releases) page:
 | `NSSMServicesManager-<version>.exe` | The app. A single file, no installation needed |
 | `SHA256SUMS.txt` | Checksums to verify the download |
 
-Put the exe anywhere you like. The build is not code-signed, so Windows SmartScreen may show a warning on first run
-(**More info → Run anyway**).
+Put the exe anywhere you like. If the build is not code-signed, Windows SmartScreen shows "Windows protected your PC"
+on first run (**More info → Run anyway**). See [Code signing](#code-signing) to remove that warning.
 
 ## First run
 
@@ -122,6 +122,43 @@ The app version is taken from the tag. Tags that contain a dash, such as `v1.2.0
 pre-releases. If the release step fails with a permissions error, set **Settings → Actions → General → Workflow
 permissions** to "Read and write".
 
+## Code signing
+
+Free code signing provided by [SignPath.io](https://about.signpath.io/), certificate by
+[SignPath Foundation](https://signpath.org/).
+
+- **Committers, reviewers and approvers:** [muath-ye](https://github.com/muath-ye)
+- **Privacy policy:** this program will not transfer any information to other networked systems unless specifically
+  requested by the user or the person installing or operating it.
+
+Release exes are built by the [release workflow](.github/workflows/release.yml) on GitHub's own runners and signed
+by SignPath, so the publisher Windows shows is **SignPath Foundation**, and SmartScreen warnings fade as the file
+builds reputation. Forks and local builds are unsigned.
+
+### Setting up signing (maintainer)
+
+1. Apply at [signpath.org/apply](https://signpath.org/apply). The repository must be public with an OSI-approved
+   license (this one is MIT) and the README must carry the policy text above.
+2. After approval, in SignPath create the project `nssm-services-manager` (slug) with a signing policy named
+   `release-signing`, link it to this GitHub repository as a trusted build system, and create an API token for a CI
+   user.
+3. In GitHub, **Settings → Secrets and variables → Actions**, add:
+
+   | Type | Name | Value |
+   | --- | --- | --- |
+   | Secret | `SIGNPATH_API_TOKEN` | The CI user's API token |
+   | Variable | `SIGNPATH_ORGANIZATION_ID` | Your SignPath organization ID |
+
+4. Push a version tag. The workflow uploads the built exe, SignPath signs it (the signing policy may wait for you
+   to approve the request in SignPath), and the signed exe is verified before it is attached to the release.
+
+The slugs in the workflow (`nssm-services-manager`, `release-signing`) and the artifact configuration in
+[`.signpath/artifact-configurations/default.xml`](.signpath/artifact-configurations/default.xml) must match what you
+create in SignPath. Without the token the workflow still builds a release, unsigned.
+
+On your own machine you can skip the warning for a file you trust: right-click the exe → **Properties → Unblock**,
+or run `Unblock-File .\NSSMServicesManager-<version>.exe`.
+
 ## License
 
-MIT
+[MIT](LICENSE)

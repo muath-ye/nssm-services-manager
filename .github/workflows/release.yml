@@ -7,11 +7,15 @@ on:
       - 'v*'
 
 permissions:
-  contents: write # needed to create the GitHub release and upload assets
+  contents: write # create the GitHub release and upload assets
+  actions: read   # lets SignPath read the build artifact it is asked to sign
 
 jobs:
   release:
     runs-on: windows-latest
+    env:
+      # Optional. When set, the exe is signed by SignPath (see README, "Code signing").
+      SIGNPATH_API_TOKEN: ${{ secrets.SIGNPATH_API_TOKEN }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -34,6 +38,44 @@ jobs:
 
       - name: Build the exe
         run: npm run build
+
+      # ---- Code signing with SignPath (skipped when SIGNPATH_API_TOKEN is not set) ----
+      - name: Upload unsigned exe for signing
+        if: env.SIGNPATH_API_TOKEN != ''
+        id: upload-unsigned
+        uses: actions/upload-artifact@v4
+        with:
+          name: unsigned-exe
+          path: dist/NSSMServicesManager-*.exe
+
+      - name: Sign with SignPath
+        if: env.SIGNPATH_API_TOKEN != ''
+        uses: signpath/github-action-submit-signing-request@v1
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: nssm-services-manager
+          signing-policy-slug: release-signing
+          github-artifact-id: ${{ steps.upload-unsigned.outputs.artifact-id }}
+          wait-for-completion: true
+          output-artifact-directory: signed
+
+      - name: Use the signed exe and verify the signature
+        if: env.SIGNPATH_API_TOKEN != ''
+        shell: pwsh
+        run: |
+          # SignPath returns the signed artifact; unpack it if it came back as a zip.
+          Get-ChildItem signed -Filter *.zip -ErrorAction SilentlyContinue | ForEach-Object {
+            Expand-Archive $_.FullName -DestinationPath signed -Force
+          }
+          $signed = Get-ChildItem signed -Recurse -Filter NSSMServicesManager-*.exe
+          if (-not $signed) { throw 'No signed exe was returned by SignPath.' }
+          foreach ($exe in $signed) {
+            $sig = Get-AuthenticodeSignature $exe.FullName
+            if ($sig.Status -ne 'Valid') { throw "Bad signature on $($exe.Name): $($sig.Status)" }
+            Write-Host "$($exe.Name): signed by $($sig.SignerCertificate.Subject)"
+            Copy-Item $exe.FullName (Join-Path dist $exe.Name) -Force
+          }
 
       - name: Create checksums
         shell: pwsh
