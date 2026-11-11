@@ -103,19 +103,50 @@ ${script}
 
   const isNssmName = (path) => /nssm(\d+)?\.exe$/i.test(path);
 
-  async function validNssmPath() {
+  const NSSM_NEEDED = 'This needs nssm.exe. Put nssm.exe next to this app, or choose it in Settings.';
+
+  let nssmCache; // undefined = not looked up yet; null = not found
+
+  /**
+   * Finds nssm.exe: the path saved in Settings, else next to this app, else on PATH. NSSM is optional; without it
+   * services are controlled with PowerShell. Returns { path, source } or null.
+   */
+  async function resolveNssm({ fresh = false } = {}) {
+    if (!fresh && nssmCache) {
+      return nssmCache;
+    }
+    nssmCache = null;
     const { nssmPath } = await readConfig();
-    return nssmPath && (await isFile(nssmPath)) ? nssmPath : null;
+    if (nssmPath && (await isFile(nssmPath))) {
+      nssmCache = { path: nssmPath, source: 'settings' };
+    } else if (await isFile(`${appDir()}/nssm.exe`)) {
+      nssmCache = { path: `${appDir()}/nssm.exe`, source: 'app-folder' };
+    } else {
+      // `$PATH:` limits the search to PATH, so an nssm.exe in the working directory is not picked up by accident.
+      const found = await Neutralino.os.execCommand('where.exe $PATH:nssm.exe');
+      const first = found.exitCode === 0 ? found.stdOut.split(/\r?\n/)[0].trim() : '';
+      if (first && (await isFile(first))) {
+        nssmCache = { path: first, source: 'path' };
+      }
+    }
+    return nssmCache;
   }
 
-  /** Runs `nssm <args>` with PowerShell; `vars` are exposed to `script` as $variables. */
+  /** Runs a script that needs NSSM: `Nssm <args>` works inside it, and $variables come from `vars`. */
   async function nssm(script, vars = {}) {
-    const path = await validNssmPath();
-    if (!path) {
-      return { ok: false, stdout: '', stderr: 'nssm.exe path is not configured.', code: -1 };
+    const resolved = await resolveNssm();
+    if (!resolved) {
+      return { ok: false, stdout: '', stderr: NSSM_NEEDED, code: -1 };
     }
-    return powershell(script, { nssm: path, ...vars });
+    return powershell(script, { nssm: resolved.path, ...vars });
   }
+
+  /** Without NSSM, services are controlled with PowerShell's own service cmdlets. */
+  const SERVICE_CMDLETS = {
+    start: 'Start-Service -Name ([WildcardPattern]::Escape($name))',
+    stop: 'Stop-Service -Name ([WildcardPattern]::Escape($name)) -Force',
+    restart: 'Restart-Service -Name ([WildcardPattern]::Escape($name)) -Force',
+  };
 
   /* ---------- theme ---------- */
 
@@ -218,9 +249,12 @@ Register-ScheduledTask -TaskName $task -Action $action -Trigger $trigger -Princi
       const theme = themeName(config);
       applyTheme(theme);
       const elevated = (await Neutralino.os.execCommand('fltmc.exe')).exitCode === 0;
+      const nssmFound = await resolveNssm({ fresh: true });
       return {
-        nssmPath: config.nssmPath || null,
-        valid: Boolean(await validNssmPath()),
+        nssmPath: config.nssmPath || null, // what is saved in Settings (may be empty)
+        nssmResolved: nssmFound ? nssmFound.path : null, // what is actually used
+        nssmSource: nssmFound ? nssmFound.source : null, // 'settings' | 'app-folder' | 'path'
+        onboarded: Boolean(config.onboarded),
         theme,
         elevated,
         version: NL_APPVERSION,
@@ -228,13 +262,25 @@ Register-ScheduledTask -TaskName $task -Action $action -Trigger $trigger -Princi
       };
     },
 
+    /** Saves the nssm.exe path. An empty value clears it (the app then auto-detects, or runs without NSSM). */
     async setNssmPath(path) {
       const cleaned = String(path || '').trim().replace(/^"|"$/g, '');
-      if (!isNssmName(cleaned) || !(await isFile(cleaned))) {
-        return { ok: false, message: 'That path is not a valid nssm.exe file.' };
+      const { nssmPath: _previous, ...rest } = await readConfig();
+      if (cleaned) {
+        if (!isNssmName(cleaned) || !(await isFile(cleaned))) {
+          return { ok: false, message: 'That path is not a valid nssm.exe file.' };
+        }
+        await writeConfig({ ...rest, nssmPath: cleaned, onboarded: true });
+      } else {
+        await writeConfig({ ...rest, onboarded: true });
       }
-      await writeConfig({ ...(await readConfig()), nssmPath: cleaned });
-      return { ok: true, message: 'Saved.' };
+      nssmCache = undefined;
+      return { ok: true, message: cleaned ? 'Saved.' : 'Cleared.' };
+    },
+
+    /** Remembers that the first-run screen was dealt with (skipped), so it is not shown again. */
+    async skipOnboarding() {
+      await writeConfig({ ...(await readConfig()), onboarded: true });
     },
 
     async browseNssm() {
@@ -268,7 +314,11 @@ Register-ScheduledTask -TaskName $task -Action $action -Trigger $trigger -Princi
       if (!ACTIONS.has(action)) {
         return { ok: false, message: 'Unknown action.' };
       }
-      return result(await nssm('Nssm $action $name', { action, name }), `${action} OK`);
+      const resolved = await resolveNssm();
+      const r = resolved
+        ? await powershell('Nssm $action $name', { nssm: resolved.path, action, name })
+        : await powershell(SERVICE_CMDLETS[action], { name });
+      return result(r, `${action} OK`);
     },
 
     async install({ name, application, args, directory }) {

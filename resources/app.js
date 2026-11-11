@@ -11,7 +11,7 @@ const state = {
   expanded: new Set(),
   timer: null,
   page: 'services',
-  valid: false,
+  hasNssm: false,
   elevated: true,
   dismissConfirm: null,
 };
@@ -106,6 +106,7 @@ function infoBar(id, kind, title, text, action = null) {
 
 function navigate(page) {
   state.page = page;
+  $('bootSplash').classList.add('hidden');
   show('page-services', page === 'services', 'flex');
   show('page-settings', page === 'settings', 'block');
   document.querySelectorAll('.nav-item').forEach((item) => {
@@ -121,15 +122,32 @@ function navigate(page) {
 
 async function loadSettings() {
   const config = await api.getConfig();
-  state.valid = config.valid;
+  state.hasNssm = Boolean(config.nssmResolved);
   state.elevated = config.elevated;
   $('nssmInput').value = config.nssmPath || '';
   $('configFile').textContent = config.configFile;
   $('versionText').textContent = config.version;
   $('themeSelect').value = config.theme;
-  document.querySelector('[data-page="services"]').disabled = !config.valid;
-  renderStartup(await api.getStartup());
+  renderNssmStatus(config);
   return config;
+}
+
+/** The "Start with Windows" lookup asks Task Scheduler (slow), so it runs only when Settings is shown. */
+async function loadStartup() {
+  renderStartup(await api.getStartup());
+}
+
+const NSSM_SOURCE = { settings: 'the path saved above', 'app-folder': 'the same folder as this app', path: 'PATH' };
+
+/** NSSM is optional: show where it was found, and what is unavailable without it. */
+function renderNssmStatus(config) {
+  $('nssmStatus').textContent = config.nssmResolved
+    ? `Using ${config.nssmResolved} (found in ${NSSM_SOURCE[config.nssmSource]}).`
+    : 'NSSM not found. That is fine: services can still be started, stopped and restarted. To install, edit or ' +
+      'remove services, put nssm.exe in the same folder as this app, or choose it above.';
+  const install = $('installBtn');
+  install.disabled = !state.hasNssm;
+  install.title = state.hasNssm ? '' : 'Needs nssm.exe (see Settings)';
 }
 
 function renderStartup({ supported, enabled, reason }) {
@@ -162,7 +180,8 @@ async function saveNssm() {
   $('setupError').textContent = r.ok ? '' : r.message;
   if (r.ok) {
     show('settingsInfo', false);
-    toast('NSSM path saved.');
+    toast(r.message);
+    await loadSettings(); // NSSM may now be found (or not), which changes what the Services page offers
     await startServices();
   }
 }
@@ -265,8 +284,8 @@ function renderRow(s) {
         <button ${attr} data-act="restart" class="btn btn-icon" title="Restart" aria-label="Restart" ${busy ? 'disabled' : ''}><i class="fi">${GLYPH.restart}</i></button>
         ${
           s.isNssm
-            ? `<button ${attr} data-act="edit" class="btn btn-icon" title="Edit in NSSM" aria-label="Edit in NSSM"><i class="fi">${GLYPH.edit}</i></button>
-               <button ${attr} data-act="remove" class="btn btn-icon btn-danger" title="Remove" aria-label="Remove" ${busy ? 'disabled' : ''}><i class="fi">${GLYPH.trash}</i></button>`
+            ? `<button ${attr} data-act="edit" class="btn btn-icon" title="${state.hasNssm ? 'Edit in NSSM' : 'Needs nssm.exe (see Settings)'}" aria-label="Edit in NSSM" ${state.hasNssm ? '' : 'disabled'}><i class="fi">${GLYPH.edit}</i></button>
+               <button ${attr} data-act="remove" class="btn btn-icon btn-danger" title="${state.hasNssm ? 'Remove' : 'Needs nssm.exe (see Settings)'}" aria-label="Remove" ${busy || !state.hasNssm ? 'disabled' : ''}><i class="fi">${GLYPH.trash}</i></button>`
             : ''
         }
         <button class="btn btn-icon" tabindex="-1" aria-label="${expanded ? 'Collapse' : 'Expand'} details" aria-expanded="${expanded}">${CHEVRON[expanded ? 'up' : 'down']}</button>
@@ -373,7 +392,6 @@ async function startServices() {
     );
   }
   $('loading').classList.remove('hidden');
-  await loadSettings();
   await refresh();
   clearInterval(state.timer);
   state.timer = setInterval(() => refresh({ silent: true }), 5000);
@@ -381,18 +399,34 @@ async function startServices() {
 
 async function boot() {
   const config = await loadSettings();
-  if (config.valid) {
+  // NSSM is optional. Onboarding only shows on the very first run, and only when NSSM was not found by itself.
+  if (config.nssmResolved || config.onboarded) {
     return startServices();
   }
   clearInterval(state.timer);
   navigate('settings');
-  infoBar('settingsInfo', 'info', 'Welcome', 'Select the location of nssm.exe to get started.');
+  loadStartup();
+  infoBar(
+    'settingsInfo',
+    'info',
+    'Welcome',
+    'NSSM is optional. Choose nssm.exe to also install, edit and remove services, or skip to use the same ' +
+      "controls Windows has (start, stop and restart).",
+    { label: 'Skip for now', run: skipOnboarding },
+  );
+}
+
+async function skipOnboarding() {
+  await api.skipOnboarding();
+  show('settingsInfo', false);
+  await startServices();
 }
 
 document.querySelectorAll('.nav-item').forEach((item) => {
   item.addEventListener('click', async () => {
     if (item.dataset.page === 'settings') {
       await loadSettings();
+      loadStartup();
     }
     navigate(item.dataset.page);
   });

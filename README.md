@@ -1,7 +1,10 @@
 # NSSM Services Manager
 
-A modern Windows 11-style desktop app to start, stop and manage Windows services, powered by
-[NSSM](https://nssm.cc) (the Non-Sucking Service Manager).
+A modern Windows 11-style desktop app to start, stop and manage Windows services. It works with every Windows
+service on its own, and adds install, edit and remove for services run through
+[NSSM](https://nssm.cc) (the Non-Sucking Service Manager) when `nssm.exe` is available.
+
+![Services page in light theme](docs/screenshots/services-light.png)
 
 Built with [Neutralino.js](https://neutralino.js.org) and Tailwind CSS, following Windows 11 / WinUI design: a
 navigation pane, Settings-style expandable cards, toggle switches, light and dark themes, and a frameless custom
@@ -11,8 +14,9 @@ ships with Windows instead of bundling its own.
 ## Features
 
 - **Browse every Windows service** with live status (refreshes every 5 seconds)
-- **Start, stop and restart** services with a toggle switch, using `nssm.exe`
-- **Install, edit and remove** NSSM services (edit opens NSSM's own editor)
+- **Start, stop and restart** services with a toggle switch. This works without NSSM, using Windows' own service
+  controls (and uses `nssm.exe` when it is available)
+- **Install, edit and remove** NSSM services (needs `nssm.exe`; edit opens NSSM's own editor)
 - **Expand a service** to see its description, service name, status, startup type, log-on account and executable path
 - **Filter** by status, startup type (including delayed start) and log-on account, plus an "NSSM only" view
 - **Search** by name, display name or description
@@ -25,7 +29,8 @@ ships with Windows instead of bundling its own.
 - Windows 10 or 11 (the design targets Windows 11)
 - The [WebView2 runtime](https://developer.microsoft.com/microsoft-edge/webview2/). It is built into Windows 11 and
   already installed on almost all Windows 10 machines.
-- [`nssm.exe`](https://nssm.cc/download) on the machine; the app asks for its location on first launch
+- [`nssm.exe`](https://nssm.cc/download) is **optional**. Without it you can still browse, start, stop and restart
+  services; only install, edit and remove need it. See [NSSM detection](#nssm-detection).
 - Administrator rights to start, stop, install or remove services. The app opens normally without a UAC prompt, so
   you can browse services right away. A banner offers **Restart as administrator** when you need to change something.
 
@@ -43,9 +48,25 @@ on first run (**More info → Run anyway**). See [Code signing](#code-signing) t
 
 ## First run
 
-1. Start the app. It opens **Settings** and asks for the path to `nssm.exe`.
-2. Click **Browse** (or paste the path) and **Save**.
-3. The **Services** page opens. Use the switch on a service to start or stop it.
+1. Start the app. If it finds `nssm.exe` by itself (see below), it opens straight to the **Services** page.
+2. Otherwise a welcome screen explains that NSSM is optional. Choose **Browse → Save** to set `nssm.exe`, or click
+   **Skip for now**. The screen is not shown again after that.
+3. On the **Services** page, use the switch on a service to start or stop it.
+
+![Services filtered to NSSM services, dark theme](docs/screenshots/nssm-only-dark.png)
+
+### NSSM detection
+
+The app looks for `nssm.exe` in this order and uses the first one it finds:
+
+1. The path saved in **Settings**
+2. The **same folder as the app** (drop `nssm.exe` next to the exe)
+3. Any folder on your **PATH**
+
+Settings shows which one is in use. Without NSSM, the **New service**, **Edit** and **Remove** buttons are disabled
+with a hint, and everything else keeps working.
+
+![Settings page](docs/screenshots/settings-light.png)
 
 ## Configuration
 
@@ -54,11 +75,13 @@ Settings are saved in `config.json` in the same folder as the exe:
 ```json
 {
   "nssmPath": "C:\\tools\\nssm\\win64\\nssm.exe",
-  "theme": "system"
+  "theme": "system",
+  "onboarded": true
 }
 ```
 
-`theme` is `system`, `light` or `dark`. You normally change these in the app's Settings page.
+`nssmPath` is optional (leave it out to use auto-detection). `theme` is `system`, `light` or `dark`. `onboarded` is
+set once the welcome screen has been dealt with. You normally change these in the app's Settings page.
 
 ### Start with Windows
 
